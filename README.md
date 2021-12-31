@@ -13,12 +13,12 @@ alt="Shows lines with search results, the titles and the urls.">
 
 - Uses `html2text` to strip the markup out of the page.
 - Uses `beautifulsoup4` to parse the title.
-- Supports both Google (default) and Bing search, but is coded in a modular / search engine agnostic 
-way to allow very easily add new search engine support. Bing search requires a API subscription key, 
-which can be obtained for free at: https://www.microsoft.com/en-us/bing/apis/bing-entity-search-api
+- Supports Google (default), Bing and Aquila search, but is coded in a modular / search engine agnostic 
+way to allow very easily add new search engine support. Both Bing and Aquila search requires a API subscription key, 
+which can be obtained for free at: https://www.microsoft.com/en-us/bing/apis/bing-entity-search-api & https://aquila.network
 
 
-Using the `googlesearch` module is very slow because it parses Google search webpages instead of querying cloud webservices. This is fine for playing with the model, but makes that searcher unusable for training or large scale inference purposes. In the paper, Bing cloud services are used, matching the results over Common Crawl instead of just downloading the page.
+Using the `googlesearch` module is very slow because it parses Google search webpages instead of querying cloud webservices. This is fine for playing with the model, but makes that searcher unusable for training or large scale inference purposes. In the paper, Bing cloud services are used, matching the results over Common Crawl instead of just downloading the page. Added `Aquila Search` to support searching on a limited collection of web pages like a collection of bookmarks.
 
 # Quick Start:
 
@@ -69,9 +69,9 @@ python search_server.py test_parser www.some_url_of_your_choice.com/
 - requests_get_timeout - sets the timeout for URL requests to fetch content of URLs found during search. Defaults to 5 seconds.
 - strip_html_menus - removes likely HTML menus to clean up text. This returns significantly higher quality and informationally dense text. 
 - max_text_bytes limits the bytes returned per web page. Defaults to no max.  Note, ParlAI current defaults to only use the first 512 byte. 
-- search_engine set to "Google" default or "Bing". Note, the Bing Search engine was used in the Blenderbot2 paper to achieve their results.  This implementation not only uses web pages but also news, entities and places.
+- search_engine set to "Google" default, "Bing" or "Aquila". Note, the Bing Search engine was used in the Blenderbot2 paper to achieve their results.  This implementation not only uses web pages but also news, entities and places.
 - use_description_only are short but 10X faster since no url gets for Bing only. It also has the advantage of being very concise without an HTML irrelevant text normally returned.
-- use_subscription_key required to use Bing only. Can get a free one at: https://www.microsoft.com/en-us/bing/apis/bing-entity-search-api
+- use_subscription_key required to use with Bing and Aquila. Get it for free: Bing: https://www.microsoft.com/en-us/bing/apis/bing-entity-search-api Aquila: https://aquila.network
 
 # Advanced Examples
 
@@ -93,6 +93,11 @@ python search_server.py serve --host 0.0.0.0:8080 --search_engine="Bing" --max_t
 Bing Search Engine returning very relevant concise information 10X faster. Returns a 250 to 350 byte web page summary per URL including the web page title:
 ```bash
 python search_server.py serve --host 0.0.0.0:8080 --search_engine="Bing" --use_description_only --subscription_key "put your bing api subscription key here"
+```
+
+Aquila Custom Search Engine:
+```bash
+python search_server.py serve --host 0.0.0.0:8080 --search_engine="Aquila" --subscription_key "put your Aquila public key here"
 ```
 
 # Additional Command Line Example Test Calls

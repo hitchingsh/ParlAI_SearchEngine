@@ -33,6 +33,9 @@ _REQUESTS_GET_TIMEOUT = 5 # seconds
 # Bing Search API documentation:
 # https://docs.microsoft.com/en-us/bing/search-apis/bing-web-search/reference/query-parameters
 
+# Aquila Network website:
+# https://aquila.network
+
 def _parse_host(host: str) -> Tuple[str, int]:
     """ Parse the host string.
     Should be in the format HOSTNAME:PORT.
@@ -46,8 +49,12 @@ def _parse_host(host: str) -> Tuple[str, int]:
 def _get_and_parse(url: str) -> Dict[str, str]:
     """ Download a webpage and parse it. """
 
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'
+    }
+
     try:
-        resp = requests.get(url, timeout=_REQUESTS_GET_TIMEOUT)
+        resp = requests.get(url, headers=headers, timeout=_REQUESTS_GET_TIMEOUT)
     except requests.exceptions.RequestException as e:
         print(f"[!] {e} for url {url}")
         return None
@@ -348,6 +355,30 @@ class GoogleSearchRequestHandler(SearchABCRequestHandler):
 
         return googlesearch.search(q, num=n, stop=None, pause=_DELAY_SEARCH)
 
+class AquilaSearchServer(SearchABCRequestHandler):
+    def search(self, q: str, n: int,
+            subscription_key: str = None,
+            use_description_only: bool = False
+        ) -> Generator[str, None, None]:
+
+        payload = json.dumps({
+            "publicIndexId": subscription_key,
+            "query": q
+        })
+        headers = {
+            'Content-Type': 'application/json'
+        }
+        
+        aquila_url_ev = "https://x.aquila.network/api/search"
+        ret_ = []
+
+        response = requests.request("POST", aquila_url_ev, headers=headers, data=payload)
+        if response.status_code == 200:
+            resp_ = dict(sorted(response.json()['result'].items(), key=lambda item: item[1], reverse=True))
+            ret_ = list(resp_.keys())[:n]
+
+        return ret_
+
 class SearchABCServer(http.server.ThreadingHTTPServer):
     def __init__(self, 
             server_address, RequestHandlerClass, 
@@ -408,6 +439,8 @@ class Application:
 
         if search_engine == "Bing":
             request_handler = BingSearchRequestHandler
+        if search_engine == "Aquila":
+            request_handler = AquilaSearchServer
         else:
             request_handler = GoogleSearchRequestHandler
 
@@ -437,6 +470,12 @@ class Application:
                 exit()
             if subscription_key is not None:
                 print("Warning: subscription_key is not supported for Google Search Engine")
+                exit()
+        elif search_engine == "Aquila":
+            if subscription_key is None:
+                print("Warning: subscription_key is required for Aquila Search Engine")
+                print("To get one go to url:")
+                print("https://aquila.network")
                 exit()
 
         print("Command line args used:")
