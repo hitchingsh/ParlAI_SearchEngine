@@ -1,6 +1,7 @@
 bs4
 chardet
 fairseq
+docutils>=0.15.2
 fire
 html2text
 html5lib

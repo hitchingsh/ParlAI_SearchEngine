@@ -28,10 +28,12 @@ _STYLE_GOOD = "[green]"
 _STYLE_SKIP = ""
 _CLOSE_STYLE_GOOD = "[/]" if _STYLE_GOOD else ""
 _CLOSE_STYLE_SKIP = "[/]" if _STYLE_SKIP else ""
-_REQUESTS_GET_TIMEOUT = 5 # seconds
+_REQUESTS_GET_TIMEOUT = 5  # seconds
+_NO_CACHING = False
 
 # Bing Search API documentation:
 # https://docs.microsoft.com/en-us/bing/search-apis/bing-web-search/reference/query-parameters
+
 
 def _parse_host(host: str) -> Tuple[str, int]:
     """ Parse the host string.
@@ -42,6 +44,7 @@ def _parse_host(host: str) -> Tuple[str, int]:
     hostname = splitted[0]
     port = splitted[1] if len(splitted) > 1 else _DEFAULT_PORT
     return hostname, int(port)
+
 
 def _get_and_parse(url: str) -> Dict[str, str]:
     """ Download a webpage and parse it. """
@@ -62,7 +65,8 @@ def _get_and_parse(url: str) -> Dict[str, str]:
     soup = bs4.BeautifulSoup(page, features="lxml")
     pre_rendered = soup.find("title")
     output_dict["title"] = (
-        html.unescape(pre_rendered.renderContents().decode()) if pre_rendered else ""
+        html.unescape(pre_rendered.renderContents().decode()
+                      ) if pre_rendered else ""
     )
 
     output_dict["title"] = (
@@ -82,9 +86,11 @@ def _get_and_parse(url: str) -> Dict[str, str]:
 
     return output_dict
 
-class SearchABCRequestHandler(http.server.BaseHTTPRequestHandler):
-    def do_POST(self):
 
+class SearchABCRequestHandler(http.server.BaseHTTPRequestHandler):
+    cache = {}                     # Initialize an empty cache dictionary
+
+    def do_POST(self):
         """ Handle POST requests from the client. (All requests are POST) """
 
         #######################################################################
@@ -95,7 +101,8 @@ class SearchABCRequestHandler(http.server.BaseHTTPRequestHandler):
 
         # Figure out the encoding
         if "charset=" in self.headers["Content-Type"]:
-            charset = re.match(r".*charset=([\w_\-]+)\b.*", self.headers["Content-Type"]).group(1)
+            charset = re.match(
+                r".*charset=([\w_\-]+)\b.*", self.headers["Content-Type"]).group(1)
         else:
             detector = chardet.UniversalDetector()
             detector.feed(post_data)
@@ -122,9 +129,18 @@ class SearchABCRequestHandler(http.server.BaseHTTPRequestHandler):
         dupe_detection_set = set()
 
         urls = []
-        results = self.search(q=q, n=n, 
-            subscription_key = self.server.subscription_key, 
-            use_description_only=self.server.use_description_only)
+        # Check if the query is already cached
+        if not self.server.no_caching and q in self.cache:
+            print("using cached results")
+            results = self.cache[q]                 # Retrieve results from cache
+        else:
+            # Perform the search and get the results
+            print("performing search")
+            results = self.search(q=q, n=n,
+                                subscription_key=self.server.subscription_key,
+                                use_description_only=self.server.use_description_only)
+            if not self.server.no_caching:
+                self.cache[q] = results
 
         if self.server.use_description_only:
             content = results
@@ -156,7 +172,7 @@ class SearchABCRequestHandler(http.server.BaseHTTPRequestHandler):
                 reason_content_empty = False
                 reason_already_seen_content = False
                 reason_content_forbidden = False
- 
+
             reasons = dict(
                 reason_empty_response=reason_empty_response,
                 reason_content_empty=reason_content_empty,
@@ -187,7 +203,8 @@ class SearchABCRequestHandler(http.server.BaseHTTPRequestHandler):
                         if line != "" and (not x or len(line) > 50):
                             new_content += line + "\n"
 
-                    maybe_content['content'] = filter_special_chars(new_content)
+                    maybe_content['content'] = filter_special_chars(
+                        new_content)
 
                 # Truncate text
                 maybe_content['content'] = maybe_content['content'][:self.server.max_text_bytes]
@@ -222,11 +239,11 @@ class SearchABCRequestHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(output)
 
-    def search(self, 
-            q: str, n: int, 
-            subscription_key: str = "", 
-            use_description_only: bool = False
-        ) -> Generator[str, None, None]:
+    def search(self,
+               q: str, n: int,
+               subscription_key: str = "",
+               use_description_only: bool = False
+               ) -> Generator[str, None, None]:
 
         return NotImplemented(
             "Search is an abstract base class, not meant to be directly "
@@ -234,33 +251,35 @@ class SearchABCRequestHandler(http.server.BaseHTTPRequestHandler):
             "GoogleSearch."
         )
 
+
 def filter_special_chars(title):
     title = title.replace("&quot", "")
     title = title.replace("&amp", "")
     title = title.replace("&gt", "")
     title = title.replace("&lt", "")
     title = title.replace("&#39", "")
-    title = title.replace("\u2018", "") # unicode single quote
-    title = title.replace("\u2019", "") # unicode single quote
-    title = title.replace("\u201c", "") # unicode left double quote 
-    title = title.replace("\u201d", "") # unicode right double quote 
-    title = title.replace("\u8220", "") # unicode left double quote 
-    title = title.replace("\u8221", "") # unicode right double quote
-    title = title.replace("\u8222", "") # unicode double low-9 quotation mark
-    title = title.replace("\u2022", "") # unicode bullet 
-    title = title.replace("\u2013", "") # unicode dash 
-    title = title.replace("\u00b7", "") # unicode middle dot
-    title = title.replace("\u00d7", "") # multiplication sign
+    title = title.replace("\u2018", "")  # unicode single quote
+    title = title.replace("\u2019", "")  # unicode single quote
+    title = title.replace("\u201c", "")  # unicode left double quote
+    title = title.replace("\u201d", "")  # unicode right double quote
+    title = title.replace("\u8220", "")  # unicode left double quote
+    title = title.replace("\u8221", "")  # unicode right double quote
+    title = title.replace("\u8222", "")  # unicode double low-9 quotation mark
+    title = title.replace("\u2022", "")  # unicode bullet
+    title = title.replace("\u2013", "")  # unicode dash
+    title = title.replace("\u00b7", "")  # unicode middle dot
+    title = title.replace("\u00d7", "")  # multiplication sign
     return title
+
 
 class BingSearchRequestHandler(SearchABCRequestHandler):
     bing_search_url = "https://api.bing.microsoft.com/v7.0/search"
 
-    def search(self, 
-            q: str, n: int, 
-            subscription_key: str = None, 
-            use_description_only: bool = False
-        ) -> Generator[str, None, None]:
+    def search(self,
+               q: str, n: int,
+               subscription_key: str = None,
+               use_description_only: bool = False
+               ) -> Generator[str, None, None]:
 
         assert subscription_key
         types = ["News", "Entities", "Places", "Webpages"]
@@ -268,11 +287,11 @@ class BingSearchRequestHandler(SearchABCRequestHandler):
 
         print(f"n={n} responseFilter={types}")
         headers = {"Ocp-Apim-Subscription-Key": subscription_key}
-        params = {"q": q, "textDecorations":False,
-            "textFormat": "HTML", "responseFilter":types, 
-            "promote":promote, "answerCount":5}
-        response = requests.get(BingSearchRequestHandler.bing_search_url, 
-            headers=headers, params=params)
+        params = {"q": q, "textDecorations": False,
+                  "textFormat": "HTML", "responseFilter": types,
+                  "promote": promote, "answerCount": 5}
+        response = requests.get(BingSearchRequestHandler.bing_search_url,
+                                headers=headers, params=params)
         response.raise_for_status()
         search_results = response.json()
 
@@ -282,15 +301,18 @@ class BingSearchRequestHandler(SearchABCRequestHandler):
             items = items + search_results["news"]["value"]
 
         if "webPages" in search_results and "value" in search_results["webPages"]:
-            print(f'bing adding {len(search_results["webPages"]["value"])} webPages')
+            print(
+                f'bing adding {len(search_results["webPages"]["value"])} webPages')
             items = items + search_results["webPages"]["value"]
 
         if "entities" in search_results and "value" in search_results["entities"]:
-            print(f'bing adding {len(search_results["entities"]["value"])} entities')
+            print(
+                f'bing adding {len(search_results["entities"]["value"])} entities')
             items = items + search_results["entities"]["value"]
 
         if "places" in search_results and "value" in search_results["places"]:
-            print(f'bing adding {len(search_results["places"]["value"])} places')
+            print(
+                f'bing adding {len(search_results["places"]["value"])} places')
             items = items + search_results["places"]["value"]
 
         urls = []
@@ -314,18 +336,21 @@ class BingSearchRequestHandler(SearchABCRequestHandler):
 
             if self.server.use_description_only:
                 content = title + ". "
-                if "snippet" in item :
+                if "snippet" in item:
                     snippet = filter_special_chars(item["snippet"])
                     content += snippet
-                    print(f"Adding webpage summary with title {title} for url {url}")
-                    contents.append({'title': title, 'url': url, 'content': content})
+                    print(
+                        f"Adding webpage summary with title {title} for url {url}")
+                    contents.append(
+                        {'title': title, 'url': url, 'content': content})
 
                 elif "description" in item:
                     if news_count < 3:
                         text = filter_special_chars(item["description"])
                         content += text
                         news_count += 1
-                        contents.append({'title': title, 'url': url, 'content': content})
+                        contents.append(
+                            {'title': title, 'url': url, 'content': content})
                 else:
                     print(f"Could not find descripton for item {item}")
             else:
@@ -333,49 +358,56 @@ class BingSearchRequestHandler(SearchABCRequestHandler):
                     urls.append(url)
 
         if len(urls) == 0 and not use_description_only:
-           print(f"Warning: No Bing URLs found for query {q}")
+            print(f"Warning: No Bing URLs found for query {q}")
 
         if use_description_only:
             return contents
         else:
             return urls
 
+
 class GoogleSearchRequestHandler(SearchABCRequestHandler):
     def search(self, q: str, n: int,
-            subscription_key: str = None,
-            use_description_only: bool = False
-        ) -> Generator[str, None, None]:
+               subscription_key: str = None,
+               use_description_only: bool = False
+               ) -> Generator[str, None, None]:
 
         return googlesearch.search(q, num=n, stop=None, pause=_DELAY_SEARCH)
 
+
 class SearchABCServer(http.server.ThreadingHTTPServer):
-    def __init__(self, 
-            server_address, RequestHandlerClass, 
-            max_text_bytes, strip_html_menus,
-            use_description_only = False, subscription_key = None 
-        ):
+    def __init__(self,
+                 server_address, RequestHandlerClass,
+                 max_text_bytes, strip_html_menus,
+                 use_description_only=False, subscription_key=None,
+                 no_caching=False
+                 ):
 
         self.max_text_bytes = max_text_bytes
         self.strip_html_menus = strip_html_menus
         self.use_description_only = use_description_only
         self.subscription_key = subscription_key
+        self.no_caching = no_caching
 
         super().__init__(server_address, RequestHandlerClass)
 
+
 class Application:
     def serve(
-            self, host: str = _DEFAULT_HOST,
-            requests_get_timeout = _REQUESTS_GET_TIMEOUT,
-            strip_html_menus = False,
-            max_text_bytes = None,
-            search_engine = "Google",
-            use_description_only = False,
-            subscription_key = None
-        ) -> NoReturn:
+        self, host: str = _DEFAULT_HOST,
+        requests_get_timeout=_REQUESTS_GET_TIMEOUT,
+        no_caching=_NO_CACHING,
+        strip_html_menus=False,
+        max_text_bytes=None,
+        search_engine="Google",
+        use_description_only=False,
+        subscription_key=None
+    ) -> NoReturn:
         """ Main entry point: Start the server.
         Arguments:
             host (str):
             requests_get_timeout (int):
+            no_caching (bool):
             strip_html_menus (bool):
             max_text_bytes (int):
             search_engine (str):
@@ -393,7 +425,7 @@ class Application:
             for Bing only
         use_subscription_key required to use Bing only. Can get a free one at:
             https://www.microsoft.com/en-us/bing/apis/bing-entity-search-api
-
+        no_caching is False by default to allow caching redundant queries.
         """
 
         global _REQUESTS_GET_TIMEOUT
@@ -404,7 +436,7 @@ class Application:
         _REQUESTS_GET_TIMEOUT = requests_get_timeout
 
         self.check_and_print_cmdline_args(max_text_bytes, strip_html_menus,
-            search_engine, use_description_only, subscription_key)
+                                          search_engine, use_description_only, subscription_key, no_caching)
 
         if search_engine == "Bing":
             request_handler = BingSearchRequestHandler
@@ -412,18 +444,19 @@ class Application:
             request_handler = GoogleSearchRequestHandler
 
         with SearchABCServer(
-                (hostname, int(port)), request_handler, 
-                max_text_bytes, strip_html_menus, 
-                use_description_only, subscription_key
-            ) as server:
-                print("Serving forever.")
-                print(f"Host: {host}")
-                server.serve_forever()
+            (hostname, int(port)), request_handler,
+            max_text_bytes, strip_html_menus,
+            use_description_only, subscription_key,
+            no_caching
+        ) as server:
+            print("Serving forever.")
+            print(f"Host: {host}")
+            server.serve_forever()
 
     def check_and_print_cmdline_args(
-            self, max_text_bytes, strip_html_menus,
-            search_engine, use_description_only, subscription_key
-        ) -> None:
+        self, max_text_bytes, strip_html_menus,
+        search_engine, use_description_only, subscription_key, no_caching
+    ) -> None:
 
         if search_engine == "Bing":
             if subscription_key is None:
@@ -433,14 +466,17 @@ class Application:
                 exit()
         elif search_engine == "Google":
             if use_description_only:
-                print("Warning: use_description_only is not supported for Google Search Engine")
+                print(
+                    "Warning: use_description_only is not supported for Google Search Engine")
                 exit()
             if subscription_key is not None:
-                print("Warning: subscription_key is not supported for Google Search Engine")
+                print(
+                    "Warning: subscription_key is not supported for Google Search Engine")
                 exit()
 
         print("Command line args used:")
         print(f"  requests_get_timeout={_REQUESTS_GET_TIMEOUT}")
+        print(f"  no_caching={no_caching}")
         print(f"  strip_html_menus={strip_html_menus}")
         print(f"  max_text_bytes={max_text_bytes}")
         print(f"  search_engine={search_engine}")
@@ -452,8 +488,7 @@ class Application:
         """
         print(_get_and_parse(url))
 
-    def test_server(self, query: str, n: int, host : str = _DEFAULT_HOST) -> None:
-
+    def test_server(self, query: str, n: int, host: str = _DEFAULT_HOST) -> None:
         """ Creates a thin fake client to test a server that is already up.
         Expects a server to have already been started with `python search_server.py serve [options]`.
         Creates a retriever client the same way ParlAi client does it for its chat bot, then

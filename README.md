@@ -22,6 +22,11 @@ Using the `googlesearch` module is very slow because it parses Google search web
 
 # Quick Start:
 
+Tested with Python 3.9.7
+
+Python<3.10 ist required due to distutils [deprecation issues with Python 3.10.0+](https://docs.python.org/3/library/distutils.html).
+
+
 First install the requirements:
 ```bash
 pip install -r requirements.txt
@@ -66,12 +71,13 @@ python search_server.py test_parser www.some_url_of_your_choice.com/
 
 # Additional Command Line Parameters
 
-- requests_get_timeout - sets the timeout for URL requests to fetch content of URLs found during search. Defaults to 5 seconds.
-- strip_html_menus - removes likely HTML menus to clean up text. This returns significantly higher quality and informationally dense text. 
-- max_text_bytes limits the bytes returned per web page. Defaults to no max.  Note, ParlAI current defaults to only use the first 512 byte. 
-- search_engine set to "Google" default or "Bing". Note, the Bing Search engine was used in the Blenderbot2 paper to achieve their results.  This implementation not only uses web pages but also news, entities and places.
-- use_description_only are short but 10X faster since no url gets for Bing only. It also has the advantage of being very concise without an HTML irrelevant text normally returned.
-- use_subscription_key required to use Bing only. Can get a free one at: https://www.microsoft.com/en-us/bing/apis/bing-entity-search-api
+- `requests_get_timeout` - sets the timeout for URL requests to fetch content of URLs found during search. Defaults to 5 seconds.
+- `strip_html_menus` - removes likely HTML menus to clean up text. This returns significantly higher quality and informationally dense text. 
+- `max_text_bytes` limits the bytes returned per web page. Defaults to no max.  Note, ParlAI current defaults to only use the first 512 byte. 
+- `search_engine` set to "Google" default or "Bing". Note, the Bing Search engine was used in the Blenderbot2 paper to achieve their results.  This implementation not only uses web pages but also news, entities and places.
+- `use_description_only` are short but 10X faster since no url gets for Bing only. It also has the advantage of being very concise without an HTML irrelevant text normally returned.
+- `use_subscription_key` required to use Bing only. Can get a free one at: https://www.microsoft.com/en-us/bing/apis/bing-entity-search-api
+- `no_caching` disables caching of search results.  This is useful for debugging and testing.  Note, the cache is not shared between search engines.  So if you switch search engines, the cache will be empty.
 
 # Advanced Examples
 
